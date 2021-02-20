@@ -24,7 +24,7 @@ const unsigned int SCR_WIDTH = 800;
 const unsigned int SCR_HEIGHT = 600;
 
 // camera
-Camera camera(glm::vec3(0.0f, 10.0f, 30.0f));
+Camera camera(glm::vec3(0.0f, 50.0f, 0.0f));
 float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
@@ -36,7 +36,11 @@ float lastFrame = 0.0f;
 // lighting
 glm::vec3 lightPos(0.0f, 0.0f, 0.0f);
 
-float rotationToggle = 1.0f;
+bool rotationToggle = false;
+float myTime = 0.0f;
+float freezeTime = 0.0f;
+float curFreezeTime = 0.0f;
+float rotationSpeed = 1.0f;
 
 int main()
 {
@@ -136,17 +140,17 @@ int main()
 
     // positions all containers
     glm::vec3 cubePositions[] = {
-        glm::vec3(10.0f, 0.0f, 0.0f),
+        glm::vec3(15.0f, 0.0f, 0.0f),
         glm::vec3(-10.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 0.0f, 10.0f),
-        glm::vec3(0.0f, 0.0f, -10.0f),
+        glm::vec3(0.0f, 0.0f, 6.0f),
+        glm::vec3(0.0f, 0.0f, -20.0f),
         glm::vec3(5.0f, 0.0f, 5.0f),
         glm::vec3(5.0f, 0.0f, -5.0f),
         glm::vec3(-5.0f, 0.0f, 5.0f),
         glm::vec3(-5.0f, 0.0f, -5.0f),
     };
 
-    float rotationSpeed[]{
+    float cubeRotationSpeed[]{
         1.0f,
         1.5f,
         2.0f,
@@ -196,13 +200,21 @@ int main()
 
     // render loop
     // -----------
-    while (!glfwWindowShouldClose(window))
+    while (1)
     {
         // per-frame time logic
         // --------------------
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+
+        if (rotationToggle)
+        {
+        }
+        else
+        {
+            myTime = (float)glfwGetTime();
+        }
 
         // input
         // -----
@@ -246,16 +258,25 @@ int main()
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, specularMap);
 
+        glm::mat4 plnt = glm::mat4(1.0f);
+        plnt = glm::translate(plnt, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
+        plnt = glm::scale(plnt, glm::vec3(1.0f, 1.0f, 1.0f));
+        plnt = glm::rotate(plnt, rotationSpeed * 0.5f * (myTime - freezeTime), glm::vec3(0.0f, 1.0f, 0.0f));
+        plnt = glm::translate(plnt, glm::vec3(15.0f, 0.0f, 0.0f));
+        plnt = glm::rotate(plnt, rotationSpeed * (myTime - freezeTime), glm::vec3(0.0f, -1.0f, 0.0f));
+
         // render containers
         glBindVertexArray(cubeVAO);
         for (unsigned int i = 0; i < 8; i++)
         {
             // calculate the model matrix for each object and pass it to shader before drawing
             glm::mat4 model = glm::mat4(1.0f);
-            model = glm::rotate(model, rotationToggle * 0.5f * (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::rotate(model, rotationSpeed * 0.5f * (myTime - freezeTime), glm::vec3(0.0f, 1.0f, 0.0f));
             model = glm::translate(model, cubePositions[i]);
+            model = glm::translate(model, glm::vec3(15.f, 0.0f, 0.0f));
+            model = glm::translate(model, glm::vec3(1.0));
             model = glm::scale(model, glm::vec3(2.2f, 2.2f, 2.2f));
-            model = glm::rotate(model, rotationToggle * rotationSpeed[i] * (float)glfwGetTime(), glm::vec3(0.0f, -1.0f, 0.0f));
+            model = glm::rotate(model, rotationSpeed * cubeRotationSpeed[i] * (myTime - freezeTime), glm::vec3(0.0f, -1.0f, 0.0f));
             lightingShader.setMat4("model", model);
 
             glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -265,11 +286,7 @@ int main()
         modelShader.use();
         modelShader.setMat4("projection", projection);
         modelShader.setMat4("view", view);
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
-        model = glm::scale(model, glm::vec3(1.0f, 1.0f, 1.0f));
-        model = glm::rotate(model, rotationToggle * (float)glfwGetTime(), glm::vec3(0.0f, -1.0f, 0.0f));
-        modelShader.setMat4("model", model);
+        modelShader.setMat4("model", plnt);
         ourModel.Draw(modelShader);
 
         glBindVertexArray(lightCubeVAO);
@@ -310,7 +327,25 @@ void processInput(GLFWwindow *window)
         camera.ProcessKeyboard(RIGHT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
     {
-        rotationToggle = (rotationToggle == 1.0f) ? 0.0f : 1.0f;
+        if (rotationToggle)
+        {
+            rotationToggle = false;
+            curFreezeTime = myTime;
+        }
+        else
+        {
+            rotationToggle = true;
+            freezeTime += (float)glfwGetTime() - curFreezeTime;
+        }
+    }
+    if (glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_PRESS)
+    {
+        rotationSpeed += 1.0f;
+    }
+    if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS)
+    {
+        if (rotationSpeed >= 2.0f)
+            rotationSpeed -= 1.0f;
     }
 }
 
