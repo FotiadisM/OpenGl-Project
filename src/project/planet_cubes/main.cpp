@@ -20,11 +20,11 @@ void processInput(GLFWwindow *window);
 unsigned int loadTexture(const char *path);
 
 // settings
-const unsigned int SCR_WIDTH = 800;
-const unsigned int SCR_HEIGHT = 600;
+const unsigned int SCR_WIDTH = 1400;
+const unsigned int SCR_HEIGHT = 900;
 
 // camera
-Camera camera(glm::vec3(0.0f, 50.0f, 0.0f));
+Camera camera(glm::vec3(0.0f, 10.0f, 0.0f));
 float lastX = SCR_WIDTH / 2.0f;
 float lastY = SCR_HEIGHT / 2.0f;
 bool firstMouse = true;
@@ -33,14 +33,14 @@ bool firstMouse = true;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
-// lighting
-glm::vec3 lightPos(0.0f, 0.0f, 0.0f);
-
 bool rotationToggle = false;
 float myTime = 0.0f;
 float freezeTime = 0.0f;
 float curFreezeTime = 0.0f;
 float rotationSpeed = 1.0f;
+
+float planetXOffset = 25.0f;
+glm::vec3 planetOffsetFormCenter(planetXOffset, 0.0f, 0.0f);
 
 int main()
 {
@@ -152,13 +152,13 @@ int main()
 
     float cubeRotationSpeed[]{
         1.0f,
-        1.5f,
+        0.1f,
         2.0f,
         2.5f,
-        1.8f,
-        2.3f,
+        4.8f,
+        8.0f,
         1.2f,
-        2.7f,
+        3.2f,
     };
 
     // first, configure the cube's VAO (and VBO)
@@ -200,7 +200,7 @@ int main()
 
     // render loop
     // -----------
-    while (1)
+    while (!glfwWindowShouldClose(window))
     {
         // per-frame time logic
         // --------------------
@@ -208,13 +208,13 @@ int main()
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        if (rotationToggle)
+        if (!rotationToggle)
         {
+            myTime = currentFrame;
         }
-        else
-        {
-            myTime = (float)glfwGetTime();
-        }
+        float planetRotationAnngle = 0.5f * (myTime - freezeTime);
+
+        // cout << "rot:" << planetRotationAnngle << std::endl;
 
         // input
         // -----
@@ -227,7 +227,9 @@ int main()
 
         // be sure to activate shader when setting uniforms/drawing objects
         lightingShader.use();
-        lightingShader.setVec3("light.position", lightPos);
+        float lightPosX = glm::cos(planetRotationAnngle) * planetXOffset;
+        float lightPosZ = glm::sin(planetRotationAnngle) * planetXOffset * -1;
+        lightingShader.setVec3("light.position", glm::vec3(lightPosX, 0.0f, lightPosZ));
         lightingShader.setVec3("viewPos", camera.Position);
 
         // light properties
@@ -239,7 +241,7 @@ int main()
         lightingShader.setFloat("light.quadratic", 0.032f);
 
         // material properties
-        lightingShader.setFloat("material.shininess", 16.0f);
+        lightingShader.setFloat("material.shininess", 2.0f);
 
         // view/projection transformations
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
@@ -259,10 +261,10 @@ int main()
         glBindTexture(GL_TEXTURE_2D, specularMap);
 
         glm::mat4 plnt = glm::mat4(1.0f);
-        plnt = glm::translate(plnt, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
-        plnt = glm::scale(plnt, glm::vec3(1.0f, 1.0f, 1.0f));
-        plnt = glm::rotate(plnt, rotationSpeed * 0.5f * (myTime - freezeTime), glm::vec3(0.0f, 1.0f, 0.0f));
-        plnt = glm::translate(plnt, glm::vec3(15.0f, 0.0f, 0.0f));
+        // plnt = glm::translate(plnt, glm::vec3(0.0f, 0.0f, 0.0f)); // translate it down so it's at the center of the scene
+        // plnt = glm::scale(plnt, glm::vec3(1.0f, 1.0f, 1.0f));
+        plnt = glm::rotate(plnt, rotationSpeed * planetRotationAnngle, glm::vec3(0.0f, 1.0f, 0.0f));
+        plnt = glm::translate(plnt, planetOffsetFormCenter);
         plnt = glm::rotate(plnt, rotationSpeed * (myTime - freezeTime), glm::vec3(0.0f, -1.0f, 0.0f));
 
         // render containers
@@ -271,9 +273,9 @@ int main()
         {
             // calculate the model matrix for each object and pass it to shader before drawing
             glm::mat4 model = glm::mat4(1.0f);
-            model = glm::rotate(model, rotationSpeed * 0.5f * (myTime - freezeTime), glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::rotate(model, rotationSpeed * planetRotationAnngle, glm::vec3(0.0f, 1.0f, 0.0f));
+            model = glm::translate(model, planetOffsetFormCenter);
             model = glm::translate(model, cubePositions[i]);
-            model = glm::translate(model, glm::vec3(15.f, 0.0f, 0.0f));
             model = glm::translate(model, glm::vec3(1.0));
             model = glm::scale(model, glm::vec3(2.2f, 2.2f, 2.2f));
             model = glm::rotate(model, rotationSpeed * cubeRotationSpeed[i] * (myTime - freezeTime), glm::vec3(0.0f, -1.0f, 0.0f));
@@ -312,40 +314,48 @@ int main()
 
 // process all input: query GLFW whether relevant keys are pressed/released this frame and react accordingly
 // ---------------------------------------------------------------------------------------------------------
+bool spacePressed = false;
 void processInput(GLFWwindow *window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    {
         glfwSetWindowShouldClose(window, true);
-
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+    }
+    else if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         camera.ProcessKeyboard(FORWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+    else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
         camera.ProcessKeyboard(BACKWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+    else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
         camera.ProcessKeyboard(LEFT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+    else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
         camera.ProcessKeyboard(RIGHT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+    else if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+        spacePressed = true;
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_RELEASE)
     {
-        if (rotationToggle)
+        if (spacePressed)
         {
-            rotationToggle = false;
-            curFreezeTime = myTime;
-        }
-        else
-        {
-            rotationToggle = true;
-            freezeTime += (float)glfwGetTime() - curFreezeTime;
+            if (rotationToggle)
+            {
+                rotationToggle = false;
+                curFreezeTime = myTime;
+            }
+            else
+            {
+                rotationToggle = true;
+                freezeTime += (float)glfwGetTime() - curFreezeTime;
+            }
+            spacePressed = false;
         }
     }
-    if (glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_PRESS)
+    else if (glfwGetKey(window, GLFW_KEY_PAGE_UP) == GLFW_PRESS)
     {
-        rotationSpeed += 1.0f;
+        rotationSpeed += 0.5f;
     }
-    if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS)
+    else if (glfwGetKey(window, GLFW_KEY_PAGE_DOWN) == GLFW_PRESS)
     {
-        if (rotationSpeed >= 2.0f)
-            rotationSpeed -= 1.0f;
+        if (rotationSpeed >= 0.5f)
+            rotationSpeed -= 0.5f;
     }
 }
 
